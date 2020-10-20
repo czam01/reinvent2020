@@ -27,28 +27,42 @@ export class CarlosRdsDemo2Stack extends cdk.Stack {
 
     const dbSubnetGroup = new rds.CfnDBSubnetGroup(this, 'AuroraSubnetGroup', {
       dbSubnetGroupDescription: 'Subnet group to access aurora',
-      dbSubnetGroupName: 'aurora-serverless-subnet-group',
+      dbSubnetGroupName: 'aurora-provisioned-subnet-group',
       subnetIds
     });
 
 
-    const aurora = new rds.CfnDBCluster(this, 'AuroraServerless', {
+
+    const aurora = new rds.CfnDBCluster(this, 'AuroraProvisioned', {
       databaseName: this.node.tryGetContext("databaseName"),
-      dbClusterIdentifier: 'aurora-serverless',
-      engine: 'aurora',
-      engineMode: 'serverless',
+      dbClusterIdentifier: 'aurora-provisioned',
+      engine: 'aurora-mysql',
+      engineMode: 'provisioned',
       masterUsername: this.node.tryGetContext("masterUser"),
       masterUserPassword: this.node.tryGetContext("masterPassword"),
       port: 3306,
-      dbSubnetGroupName: dbSubnetGroup.dbSubnetGroupName,
-      scalingConfiguration: {
-        autoPause: true,
-        maxCapacity: 2,
-        minCapacity: 2,
-        secondsUntilAutoPause: 3600
-      }
+      dbSubnetGroupName: dbSubnetGroup.dbSubnetGroupName
     });
 
+// Instancia Primaria del cluster
+    const aurora_primaria = new rds.CfnDBInstance(this, 'AuroraMaster', {
+      dbInstanceClass: "db.r3.xlarge",
+      dbClusterIdentifier: aurora.dbClusterIdentifier,
+      engine: 'aurora-mysql'
+    });
+
+// Instancia Secundaria del cluster
+const aurora_secundaria = new rds.CfnDBInstance(this, 'AuroraSlave', {
+  dbInstanceClass: "db.r3.xlarge",
+  dbClusterIdentifier: aurora.dbClusterIdentifier,
+  engine: 'aurora-mysql',
+  promotionTier: 0,
+  sourceDbInstanceIdentifier: aurora_primaria.dbInstanceIdentifier
+});    
+
+
+    aurora_primaria.addDependsOn(aurora);
+    aurora_secundaria.addDependsOn(aurora_primaria);
     //wait for subnet group to be created
     aurora.addDependsOn(dbSubnetGroup);
 
