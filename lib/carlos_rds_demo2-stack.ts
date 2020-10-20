@@ -50,10 +50,19 @@ export class CarlosRdsDemo2Stack extends cdk.Stack {
       dbClusterIdentifier: aurora.dbClusterIdentifier,
       engine: 'aurora-mysql'
     });
-    
+
+// Instancia Secundaria del cluster
+const aurora_secundaria = new rds.CfnDBInstance(this, 'AuroraSlave', {
+  dbInstanceClass: "db.r3.xlarge",
+  dbClusterIdentifier: aurora.dbClusterIdentifier,
+  engine: 'aurora-mysql',
+  promotionTier: 0,
+  sourceDbInstanceIdentifier: aurora_primaria.dbInstanceIdentifier
+});    
+
+
     aurora_primaria.addDependsOn(aurora);
-
-
+    aurora_secundaria.addDependsOn(aurora_primaria);
     //wait for subnet group to be created
     aurora.addDependsOn(dbSubnetGroup);
 
