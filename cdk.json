@@ -5,7 +5,7 @@
     "aws-cdk:enableDiffNoFail": "true",
     "@aws-cdk/core:stackRelativeExports": "true",
     "masterUser": "reInvent",
-    "masterPassword":"suposedto_be_secured_someday###haveFun",
+    "masterPassword":"S3cur3p4ss",
     "databaseName":"reInventDemo"
   }
 }
