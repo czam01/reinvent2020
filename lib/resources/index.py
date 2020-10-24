@@ -1,17 +1,20 @@
 import sys
 import logging
 import pymysql
-
-rds_host  = "mysqlforlambdatest.cggwqk7kcvnh.us-east-1.rds.amazonaws.com"
-name = "czam" 
-password = "Colombia2020$"
-db_name = "ExampleDB"
+import os
+import random
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+dbUser = os.environ['dbUser']
+dbPassword = os.environ['dbPassword']
+dbName = os.environ['dbName']
+dbHost = os.environ['dbHost']
+dbPort = os.environ['dbPort']
+
 try:
-    conn = pymysql.connect(rds_host, user=name, passwd=password, db=db_name, connect_timeout=5)
+    conn = pymysql.connect(dbHost, user=dbUser, passwd=dbPassword, db=dbName, connect_timeout=5)
 except pymysql.MySQLError as e:
     logger.error("ERROR: Unexpected error: Could not connect to MySQL instance.")
     logger.error(e)
@@ -26,12 +29,15 @@ def handler(event, context):
     item_count = 0
 
     with conn.cursor() as cur:
-        """
-        cur.execute("create table Employee ( EmpID  int NOT NULL, Name varchar(255) NOT NULL, PRIMARY KEY (EmpID))")
-        """
-        cur.execute('insert into Employee (EmpID, Name) values(4, "Joe")')
-        cur.execute('insert into Employee (EmpID, Name) values(5, "Bob")')
-        cur.execute('insert into Employee (EmpID, Name) values(6, "Mary")')
+
+        cur.execute("SHOW TABLES")
+        table_iterator = cur.fetchall()
+        if "Employee" not in table_iterator:
+            cur.execute("create table Employee ( EmpID  int NOT NULL, Name varchar(255) NOT NULL, PRIMARY KEY (EmpID))")
+
+        for i in range(10000):
+            id= random.randint(0, 40000000)
+            cur.execute('insert into Employee (EmpID, Name) values({}, "Clone{}")'.format(id,i))
         conn.commit()
         cur.execute("select * from Employee")
         for row in cur:
