@@ -6,7 +6,8 @@ import * as ec2cdk from '@aws-cdk/aws-ec2'
 import * as rds from '@aws-cdk/aws-rds';
 import * as path from 'path';
 import fs = require('fs');
-import { TopicPolicy } from '@aws-cdk/aws-sns';
+import * as events from '@aws-cdk/aws-events';
+import * as eventsTargets from '@aws-cdk/aws-events-targets';
 
 export class CarlosRdsDemo2Stack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -117,6 +118,7 @@ const aurora_secundaria = new rds.CfnDBInstance(this, 'AuroraSlave', {
         handler: "index.handler",
         code: new lambda.InlineCode(fs.readFileSync(path.join("lib", "resources", "index.py"), { encoding: 'utf-8' })),
         allowPublicSubnet: true,
+        timeout: cdk.Duration.seconds(300),
         layers: [layer],
         environment: {
           "dbUser": this.node.tryGetContext("masterUser"),
@@ -130,6 +132,12 @@ const aurora_secundaria = new rds.CfnDBInstance(this, 'AuroraSlave', {
       lambdaScheduler.addEventSource(new SnsEventSource(topic));
 
     }
+    const rule = new events.Rule(this, 'ruleReinvent', {
+      schedule: events.Schedule.expression('cron(0/1 * * * ? *)'),
+      enabled: false
+    });
+
+    rule.addTarget(new eventsTargets.SnsTopic(topic));
   }
 
 }
