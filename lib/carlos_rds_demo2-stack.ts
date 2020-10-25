@@ -6,6 +6,7 @@ import * as ec2cdk from '@aws-cdk/aws-ec2'
 import * as rds from '@aws-cdk/aws-rds';
 import * as path from 'path';
 import fs = require('fs');
+import { TopicPolicy } from '@aws-cdk/aws-sns';
 
 export class CarlosRdsDemo2Stack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -18,6 +19,34 @@ export class CarlosRdsDemo2Stack extends cdk.Stack {
         { name: 'aurora_rdsTest', subnetType: ec2cdk.SubnetType.ISOLATED }
       ]
     });
+
+//############ Security Group for RDS 
+    const SecurityGroupAurora = new ec2cdk.CfnSecurityGroup(this, 'AuroraSG', {
+      groupDescription: 'Aurora SG',
+      vpcId: vpc.vpcId
+      });
+      const IngressAurora = new ec2cdk.CfnSecurityGroupIngress(this, 'LambdaPort', {
+        groupId: SecurityGroupAurora.getAtt("GroupId").toString(),
+        ipProtocol: 'tcp',
+        fromPort: 3306,
+        toPort: 3306,
+        cidrIp: '0.0.0.0/0'
+      });   
+
+//############ Security Group for Lambda 
+    const SecurityGroupLambda = new ec2cdk.CfnSecurityGroup(this, 'LambdaSG', {
+      groupDescription: 'Lambda SG',
+      vpcId: vpc.vpcId
+      });
+    const EgressSGLambda = new ec2cdk.CfnSecurityGroupEgress(this, 'RDSPort', {
+      groupId: SecurityGroupLambda.getAtt("GroupId").toString(),
+      ipProtocol: 'tcp',
+      fromPort: 3306,
+      toPort: 3306,
+      destinationSecurityGroupId: SecurityGroupAurora.getAtt("GroupId").toString(),
+    })
+
+
 
     const subnetIds: string[] = [];
     vpc.isolatedSubnets.forEach((subnet, index) => {
@@ -41,14 +70,15 @@ export class CarlosRdsDemo2Stack extends cdk.Stack {
       masterUsername: this.node.tryGetContext("masterUser"),
       masterUserPassword: this.node.tryGetContext("masterPassword"),
       port: 3306,
-      dbSubnetGroupName: dbSubnetGroup.dbSubnetGroupName
+      dbSubnetGroupName: dbSubnetGroup.dbSubnetGroupName,
+      vpcSecurityGroupIds:[SecurityGroupAurora.getAtt("GroupId").toString()]
     });
 
 // Instancia Primaria del cluster
     const aurora_primaria = new rds.CfnDBInstance(this, 'AuroraMaster', {
       dbInstanceClass: "db.r3.xlarge",
       dbClusterIdentifier: aurora.dbClusterIdentifier,
-      engine: 'aurora-mysql'
+      engine: 'aurora-mysql',
     });
 
 // Instancia Secundaria del cluster
@@ -63,12 +93,12 @@ const aurora_secundaria = new rds.CfnDBInstance(this, 'AuroraSlave', {
 
     aurora_primaria.addDependsOn(aurora);
     aurora_secundaria.addDependsOn(aurora_primaria);
-    //wait for subnet group to be created
     aurora.addDependsOn(dbSubnetGroup);
+    EgressSGLambda.addDependsOn(SecurityGroupLambda);
+    IngressAurora.addDependsOn(SecurityGroupAurora);
 
 
-
-    //create SNS topic to trigger DMS task
+    //create SNS topic to trigger task
     const topic = new sns.Topic(this, 'triggerTopic', {
       topicName: 'trigerReInventDemo',
       displayName: 'trigerReInventDemo'
@@ -83,6 +113,7 @@ const aurora_secundaria = new rds.CfnDBInstance(this, 'AuroraSlave', {
         functionName: "reInventQueryLambda" + iter.toString(),
         runtime: lambda.Runtime.PYTHON_3_7,
         vpc: vpc,
+//        securityGroups ec2cdk.SecurityGroup.fromSecurityGroupId(this, 'alguna shit', SecurityGroupLambda.getAtt("GroupId")),
         handler: "index.handler",
         code: new lambda.InlineCode(fs.readFileSync(path.join("lib", "resources", "index.py"), { encoding: 'utf-8' })),
         allowPublicSubnet: true,
