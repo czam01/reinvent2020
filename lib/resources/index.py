@@ -25,25 +25,20 @@ def handler(event, context):
     """
     This function fetches content from MySQL RDS instance
     """
-
+    streams = 10
     item_count = 0
-
-    with conn.cursor() as cur:
-
-        cur.execute("SHOW TABLES")
-        table_iterator = cur.fetchall()
-        if "Employee" not in table_iterator:
-            cur.execute("create table Employee ( EmpID  int NOT NULL, Name varchar(255) NOT NULL, PRIMARY KEY (EmpID))")
-
-        for i in range(10000):
-            id= random.randint(0, 40000000)
-            cur.execute('insert into Employee (EmpID, Name) values({}, "Clone{}")'.format(id,i))
+    for i in range(streams):
+        with conn.cursor() as cur:
+            cur.execute("CREATE TABLE IF NOT EXISTS Employee ( EmpID  int NOT NULL AUTO_INCREMENT, Name varchar(255) NOT NULL, PRIMARY KEY (EmpID))")
+            for i in range(1000):
+                cur.execute('insert into Employee (Name) values("Clone{}")'.format(random.randint(0,1000000)))
+            conn.commit()
+            cur.execute("select * from Employee")
+            for row in cur:
+                item_count += 1
+                logger.info(row)
+                print(row)
         conn.commit()
-        cur.execute("select * from Employee")
-        for row in cur:
-            item_count += 1
-            logger.info(row)
-            print(row)
-    conn.commit()
-
+        time.sleep(random.randint(0,5))
+        
     return "Added %d items from RDS MySQL table" %(item_count)

@@ -4,4 +4,4 @@ import * as cdk from '@aws-cdk/core';
 import { CarlosRdsDemo2Stack } from '../lib/carlos_rds_demo2-stack';
 
 const app = new cdk.App();
-new CarlosRdsDemo2Stack(app, 'CarlosRdsDemo2Stack');
+new CarlosRdsDemo2Stack(app, 'reInvent-demo-aurora');
