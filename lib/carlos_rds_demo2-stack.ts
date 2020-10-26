@@ -21,24 +21,24 @@ export class CarlosRdsDemo2Stack extends cdk.Stack {
       ]
     });
 
-//############ Security Group for RDS 
+    //############ Security Group for RDS 
     const SecurityGroupAurora = new ec2cdk.CfnSecurityGroup(this, 'AuroraSG', {
       groupDescription: 'Aurora SG',
       vpcId: vpc.vpcId
-      });
-      const IngressAurora = new ec2cdk.CfnSecurityGroupIngress(this, 'LambdaPort', {
-        groupId: SecurityGroupAurora.getAtt("GroupId").toString(),
-        ipProtocol: 'tcp',
-        fromPort: 3306,
-        toPort: 3306,
-        cidrIp: '0.0.0.0/0'
-      });   
+    });
+    const IngressAurora = new ec2cdk.CfnSecurityGroupIngress(this, 'LambdaPort', {
+      groupId: SecurityGroupAurora.getAtt("GroupId").toString(),
+      ipProtocol: 'tcp',
+      fromPort: 3306,
+      toPort: 3306,
+      cidrIp: '0.0.0.0/0'
+    });
 
-//############ Security Group for Lambda 
+    //############ Security Group for Lambda 
     const SecurityGroupLambda = new ec2cdk.CfnSecurityGroup(this, 'LambdaSG', {
       groupDescription: 'Lambda SG',
       vpcId: vpc.vpcId
-      });
+    });
     const EgressSGLambda = new ec2cdk.CfnSecurityGroupEgress(this, 'RDSPort', {
       groupId: SecurityGroupLambda.getAtt("GroupId").toString(),
       ipProtocol: 'tcp',
@@ -47,21 +47,16 @@ export class CarlosRdsDemo2Stack extends cdk.Stack {
       destinationSecurityGroupId: SecurityGroupAurora.getAtt("GroupId").toString(),
     })
 
-
-
     const subnetIds: string[] = [];
     vpc.isolatedSubnets.forEach((subnet, index) => {
       subnetIds.push(subnet.subnetId);
     });
-
 
     const dbSubnetGroup = new rds.CfnDBSubnetGroup(this, 'AuroraSubnetGroup', {
       dbSubnetGroupDescription: 'Subnet group to access aurora',
       dbSubnetGroupName: 'aurora-provisioned-subnet-group',
       subnetIds
     });
-
-
 
     const aurora = new rds.CfnDBCluster(this, 'AuroraProvisioned', {
       databaseName: this.node.tryGetContext("databaseName"),
@@ -72,32 +67,30 @@ export class CarlosRdsDemo2Stack extends cdk.Stack {
       masterUserPassword: this.node.tryGetContext("masterPassword"),
       port: 3306,
       dbSubnetGroupName: dbSubnetGroup.dbSubnetGroupName,
-      vpcSecurityGroupIds:[SecurityGroupAurora.getAtt("GroupId").toString()]
+      vpcSecurityGroupIds: [SecurityGroupAurora.getAtt("GroupId").toString()]
     });
 
-// Instancia Primaria del cluster
+    // Instancia Primaria del cluster
     const aurora_primaria = new rds.CfnDBInstance(this, 'AuroraMaster', {
       dbInstanceClass: "db.r3.xlarge",
       dbClusterIdentifier: aurora.dbClusterIdentifier,
       engine: 'aurora-mysql',
     });
 
-// Instancia Secundaria del cluster
-const aurora_secundaria = new rds.CfnDBInstance(this, 'AuroraSlave', {
-  dbInstanceClass: "db.r3.xlarge",
-  dbClusterIdentifier: aurora.dbClusterIdentifier,
-  engine: 'aurora-mysql',
-  promotionTier: 0,
-  sourceDbInstanceIdentifier: aurora_primaria.dbInstanceIdentifier
-});    
-
+    // Instancia Secundaria del cluster
+    const aurora_secundaria = new rds.CfnDBInstance(this, 'AuroraSlave', {
+      dbInstanceClass: "db.r3.xlarge",
+      dbClusterIdentifier: aurora.dbClusterIdentifier,
+      engine: 'aurora-mysql',
+      promotionTier: 0,
+      sourceDbInstanceIdentifier: aurora_primaria.dbInstanceIdentifier
+    });
 
     aurora_primaria.addDependsOn(aurora);
     aurora_secundaria.addDependsOn(aurora_primaria);
     aurora.addDependsOn(dbSubnetGroup);
     EgressSGLambda.addDependsOn(SecurityGroupLambda);
     IngressAurora.addDependsOn(SecurityGroupAurora);
-
 
     //create SNS topic to trigger task
     const topic = new sns.Topic(this, 'triggerTopic', {
@@ -107,14 +100,14 @@ const aurora_secundaria = new rds.CfnDBInstance(this, 'AuroraSlave', {
 
     const layer = lambda.LayerVersion.fromLayerVersionArn(this, 'layerversion', 'arn:aws:lambda:us-east-1:638852852210:layer:reInventDemoSQL:1');
 
-    let someArray = [1, 2];//, 3, 4, 5, 6, 7, 8, 9, 10];
-    for (let iter in someArray) {
+    const lambdaNumber = 2
+    for (let iter = 0; iter < lambdaNumber; iter++) {
 
       const lambdaScheduler = new lambda.Function(this, "lambda_query_" + iter.toString(), {
         functionName: "reInventQueryLambda" + iter.toString(),
         runtime: lambda.Runtime.PYTHON_3_7,
         vpc: vpc,
-//        securityGroups ec2cdk.SecurityGroup.fromSecurityGroupId(this, 'alguna shit', SecurityGroupLambda.getAtt("GroupId")),
+        //        securityGroups ec2cdk.SecurityGroup.fromSecurityGroupId(this, 'alguna shit', SecurityGroupLambda.getAtt("GroupId")),
         handler: "index.handler",
         code: new lambda.InlineCode(fs.readFileSync(path.join("lib", "resources", "index.py"), { encoding: 'utf-8' })),
         allowPublicSubnet: true,
