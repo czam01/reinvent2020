@@ -26,7 +26,7 @@ def handler(event, context):
     """
     This function fetches content from MySQL RDS instance
     """
-    streams = 5
+    streams = 10
     item_count = 0
     for i in range(streams):
         with conn.cursor() as cur:
